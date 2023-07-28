@@ -11,17 +11,13 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-// Импорт структуры данных из другого файла
-
 func main() {
-	// Подключение к серверу NATS Streaming
 	nc, err := nats.Connect("nats://localhost:4222")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer nc.Close()
 
-	// Создание экземпляра структуры данных
 	order := model.Order{
 		OrderUID:    fmt.Sprintf("%d", rand.Int63()),
 		TrackNumber: "1234567890",
@@ -80,7 +76,6 @@ func main() {
 		panic(err)
 	}
 
-	// Отправка сообщения в NATS Streaming
 	err = nc.Publish("subject", jsonData)
 	if err != nil {
 		panic(err)

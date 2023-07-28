@@ -8,11 +8,8 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// ... Ваши структуры данных ...
-
 func CreateTables(db *sql.DB) {
 
-	// Создание таблиц
 	execQuery(db, `CREATE TABLE IF NOT EXISTS orders (
         order_uid text,
         track_number text,
@@ -69,7 +66,6 @@ func CreateTables(db *sql.DB) {
 }
 
 func InsertData(db *sql.DB, data model.Order) {
-	// Вставка данных в таблицы
 	execQuery(db, `INSERT INTO orders (
         order_uid,
         track_number,
