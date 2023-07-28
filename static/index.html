@@ -1,0 +1,34 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>UID Search</title>
+</head>
+<body>
+    <h1>UID Search</h1>
+    <label for="uidInput">Enter UID:</label>
+    <input type="text" id="uidInput" />
+    <button onclick="search()">Search</button>
+    <br />
+    <pre id="resultLabel"></pre>
+
+    <script>
+        function search() {
+            const uid = document.getElementById("uidInput").value;
+            fetch(`/api/search/${uid}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error("No data found for the given UID.");
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById("resultLabel").innerText = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    document.getElementById("resultLabel").innerText = error.message;
+                });
+        }
+    </script>
+</body>
+</html>
