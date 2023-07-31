@@ -70,7 +70,6 @@ func main() {
 		OofShard:          "OOF123",
 	}
 
-	// Кодирование структуры данных в JSON
 	jsonData, err := json.Marshal(order)
 	if err != nil {
 		panic(err)
@@ -81,21 +80,16 @@ func main() {
 		panic(err)
 	}
 
-	//Отправка нескольких сообщений в NATS Streaming
-	//	for i := 0; i < 10; i++ {
-	// 	// Изменение значения поля OrderUID
-	// 	order.OrderUID = fmt.Sprintf("%d", i)
+// 	for i := 20; i < 1000; i++ {
+// 		order.OrderUID = fmt.Sprintf("%d", i)
 
-	// 	// Кодирование структуры данных в JSON
-	// 	jsonData, err := json.Marshal(order)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-
-	// 	// Отправка сообщения в NATS Streaming
-	// 	err = nc.Publish("subject", jsonData)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// }
-}
+// 		jsonData, err := json.Marshal(order)
+// 		if err != nil {
+// 			panic(err)
+// 		}
+// 		err = nc.Publish("subject", jsonData)
+// 		if err != nil {
+// 			panic(err)
+// 		}
+// 	}
+// }

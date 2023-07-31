@@ -8,19 +8,39 @@ import (
 	"l0/model"
 	"log"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 )
 
-var orderCache = make(map[string]model.Order)
+var stmt *sql.Stmt
 
-func loadOrders(db *sql.DB) {
-	rows, err := db.Query("select orders.*, delivery.name, delivery.phone, delivery.zip, delivery.city, delivery.address, delivery.region, delivery.email, payment.transaction, payment.request_id, payment.currency, payment.provider, payment.amount, payment.payment_dt, payment.bank, payment.delivery_cost, payment.goods_total, payment.custom_fee, items.chrt_id, items.track_number, items.price, items.rid, items.name, items.sale, items.size, items.total_price, items.nm_id, items.brand, items.status from orders join delivery on orders.order_uid = delivery.order_uid join payment on orders.order_uid = payment.order_uid join items on orders.order_uid = items.order_uid") // Your SQL query here
-	if err != nil {
-		log.Fatal(err)
+func prepare(db *sql.DB) {
+	var err error
+	for {
+		stmt, err = db.Prepare("select orders.*, delivery.name, delivery.phone, delivery.zip, delivery.city, delivery.address, delivery.region, delivery.email, payment.transaction, payment.request_id, payment.currency, payment.provider, payment.amount, payment.payment_dt, payment.bank, payment.delivery_cost, payment.goods_total, payment.custom_fee, items.chrt_id, items.track_number, items.price, items.rid, items.name, items.sale, items.size, items.total_price, items.nm_id, items.brand, items.status from orders join delivery on orders.order_uid = delivery.order_uid join payment on orders.order_uid = payment.order_uid join items on orders.order_uid = items.order_uid")
+		if err == nil {
+			break
+		}
+		log.Println("Error preparing SQL statement:", err)
+		time.Sleep(time.Second * 2) // Пауза перед повторной попыткой
 	}
-	defer rows.Close()
+}
+
+func loadOrders(db *sql.DB, orderCache *sync.Map) {
+
+	var rows *sql.Rows
+	var err error
+	for {
+		rows, err = stmt.Query()
+		if err == nil {
+			break
+		}
+		log.Println("Error executing query, retrying:", err)
+		time.Sleep(time.Second * 2)
+	}
 
 	for rows.Next() {
 		var orderData model.Order
@@ -68,33 +88,29 @@ func loadOrders(db *sql.DB) {
 		)
 
 		if err != nil {
-			log.Fatal(err)
+			log.Println("Error executing query:", err)
+			return
 		}
 		orderData.Items = append(orderData.Items, item)
+		orderCache.Store(orderData.OrderUID, orderData)
 
-		orderCache[orderData.OrderUID] = orderData
-
-		log.Printf("Loaded order with ID %s into cache", orderData.OrderUID)
 	}
 
-	log.Printf("Loaded %d orders into cache", len(orderCache))
 }
 
-func handleMsg(msg *nats.Msg, db *sql.DB) {
+func handleMsg(msg *nats.Msg, db *sql.DB, orderCache *sync.Map) {
 	var orderData model.Order
-	err := json.Unmarshal(msg.Data, &orderData)
-	if err != nil {
-		return
-	}
+	json.Unmarshal(msg.Data, &orderData)
+
 	sqldata.InsertData(db, orderData)
-	orderCache[orderData.OrderUID] = orderData
+	orderCache.Store(orderData.OrderUID, orderData)
 }
 
-func handleSearch(w http.ResponseWriter, r *http.Request) {
+func handleSearch(w http.ResponseWriter, r *http.Request, orderCache *sync.Map) {
 	params := mux.Vars(r)
 	uid := params["uid"]
 
-	result, found := orderCache[uid]
+	result, found := orderCache.Load(uid)
 	if !found {
 		http.Error(w, "No data found for the given UID.", http.StatusNotFound)
 		return
@@ -106,34 +122,54 @@ func handleSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	nc, err := nats.Connect("nats://localhost:4222")
-	if err != nil {
-		log.Fatal(err)
+	var err error
+	var nc *nats.Conn
+	for {
+		nc, err = nats.Connect("nats://localhost:4222")
+		if err == nil {
+			break
+		}
+		log.Println("Error nats connection:", err)
+		time.Sleep(time.Second * 2)
 	}
-	defer nc.Close()
 
-	connStr := "user=admin password=123456 dbname=base sslmode=disable"
-	db, err := sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatal(err)
+	configStr := "user=admin password=123456 dbname=base sslmode=disable"
+	var db *sql.DB
+	for {
+		db, err = sql.Open("postgres", configStr)
+		if err == nil {
+			break
+		}
+		log.Println("Error opening database connection:", err)
+		time.Sleep(time.Second * 2)
 	}
 
-	loadOrders(db)
+	prepare(db)
 
-	// Subscribe to NATS messages
-	_, err = nc.Subscribe("subject", func(msg *nats.Msg) {
-		handleMsg(msg, db)
-	})
-	if err != nil {
-		log.Fatal("Error subscribing:", err)
+	var orderCache sync.Map
+	go func() {
+		loadOrders(db, &orderCache)
+	}()
+
+	for {
+		_, err = nc.Subscribe("subject", func(msg *nats.Msg) {
+			handleMsg(msg, db, &orderCache)
+		})
+		if err == nil {
+			break
+		}
+		log.Println("Error subscribing:", err)
+		time.Sleep(time.Second * 2)
 	}
 
 	r := mux.NewRouter()
 
-	r.HandleFunc("/api/search/{uid}", handleSearch).Methods("GET")
+	r.HandleFunc("/api/search/{uid}", func(w http.ResponseWriter, r *http.Request) {
+		handleSearch(w, r, &orderCache)
+	}).Methods("GET")
 
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./static/")))
 
-	fmt.Println("Starting HTTP server on port 8088...")
-	log.Fatal(http.ListenAndServe(":8088", r))
+	fmt.Println("Starting HTTP server on port 8080...")
+	log.Fatal(http.ListenAndServe(":8080", r))
 }

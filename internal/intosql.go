@@ -8,63 +8,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func CreateTables(db *sql.DB) {
-
-	execQuery(db, `CREATE TABLE IF NOT EXISTS orders (
-        order_uid text,
-        track_number text,
-        entry text,
-        locale text,
-        internal_signature text,
-        customer_id text,
-        delivery_service text,
-        shardkey text,
-        sm_id integer,
-        date_created timestamp,
-        oof_shard text
-    )`)
-
-	execQuery(db, `CREATE TABLE IF NOT EXISTS deliveries (
-        order_uid text,
-        name text,
-        phone text,
-        zip text,
-        city text,
-        address text,
-        region text,
-        email text
-    )`)
-
-	execQuery(db, `CREATE TABLE IF NOT EXISTS payments (
-        order_uid text,
-        transaction text,
-        request_id text,
-        currency text,
-        provider text,
-        amount float,
-        payment_dt integer,
-        bank text,
-        delivery_cost float,
-        goods_total float,
-        custom_fee float
-    )`)
-
-	execQuery(db, `CREATE TABLE IF NOT EXISTS items (
-        order_uid text,
-        chrt_id integer,
-        track_number text,
-        price float,
-        rid text,
-        name text,
-        sale float,
-        size text,
-        total_price float,
-        nm_id integer,
-        brand text,
-        status integer
-    )`)
-}
-
 func InsertData(db *sql.DB, data model.Order) {
 	execQuery(db, `INSERT INTO orders (
         order_uid,
